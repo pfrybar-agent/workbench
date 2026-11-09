@@ -57,7 +57,11 @@ RUN apt-get update \
 COPY --from=ghcr.io/jdx/mise:2026.11.2 \
     /usr/local/bin/mise /usr/local/bin/mise
 
-RUN mise --version
+# zsh completion for mise, where zsh looks first, as Homebrew's mise has. It
+# completes by calling this mise, so it always matches its version.
+RUN mise --version \
+ && mkdir -p /usr/local/share/zsh/site-functions \
+ && mise completion zsh > /usr/local/share/zsh/site-functions/_mise
 
 # A Node.js just for running Paseo. It stays off PATH: users get their own Node
 # from mise, and Paseo's launcher calls this one by its full path.

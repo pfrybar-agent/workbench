@@ -54,6 +54,8 @@ check "man pages" run man -w git
 check "tmux-256color terminfo" run infocmp tmux-256color
 check "emacs runs" run emacs --batch --eval '(kill-emacs 0)'
 check "default command keeps the container up and starts nothing" starts_nothing
+check "zsh completes mise" run zsh -fc '
+  autoload -Uz compinit && compinit -u && [[ $_comps[mise] == _mise ]]'
 check "mise's shims are on PATH" run bash -c '[[ ":$PATH:" == *":$HOME/.local/share/mise/shims:"* ]]'
 check "the image's Node is not on PATH" run bash -c '! command -v node'
 check "paseo runs on the image's Node, whatever node is on PATH" run bash -c '
