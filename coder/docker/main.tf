@@ -73,6 +73,16 @@ data "coder_parameter" "paseo" {
   order        = 3
 }
 
+data "coder_parameter" "keep_docker_data" {
+  name         = "keep_docker_data"
+  display_name = "Keep Docker data"
+  description  = "Keep the workspace's Docker images, build cache, containers and volumes when it restarts, in a volume of their own. Turning this off deletes that volume. Clean up with `docker system prune`."
+  type         = "bool"
+  default      = "true"
+  mutable      = true
+  order        = 4
+}
+
 # The image starts nothing: the scripts below start Docker, apply the owner's
 # mise repository and start Paseo, and stop them again.
 resource "coder_agent" "main" {
@@ -351,6 +361,34 @@ resource "docker_volume" "home_volume" {
   }
 }
 
+# The workspace's own Docker data (/var/lib/docker): images, build cache,
+# containers and volumes. Without it, sysbox gives each container an empty
+# one, which goes with the container on every stop. Like the home volume,
+# it's kept while the workspace is stopped.
+resource "docker_volume" "docker_data" {
+  count = data.coder_parameter.keep_docker_data.value == "true" ? 1 : 0
+  name  = "coder-${data.coder_workspace.me.id}-docker"
+  lifecycle {
+    ignore_changes = all
+  }
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.workbench[0].image_id
@@ -375,6 +413,15 @@ resource "docker_container" "workspace" {
     container_path = "/home/dev"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
+  }
+  # Sysbox allows a volume at /var/lib/docker as long as only one container
+  # uses it, which holds for a workspace.
+  dynamic "volumes" {
+    for_each = docker_volume.docker_data
+    content {
+      container_path = "/var/lib/docker"
+      volume_name    = volumes.value.name
+    }
   }
   networks_advanced {
     name = "coder-workspaces"
