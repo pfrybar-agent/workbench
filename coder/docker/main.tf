@@ -229,6 +229,26 @@ resource "coder_script" "setup" {
     # Paseo reads its settings from ~/.paseo/config.json, which a Coder secret
     # can provide: Coder writes secret files before this script runs.
     if [ "$WORKBENCH_PASEO" = true ]; then
+      # Environment variables for this workspace only, such as secrets its
+      # agents need, from ~/.config/workbench/env in this workspace's home:
+      # KEY=value lines, taken literally, with # comments. Paseo passes them
+      # to the agents it starts. Errors name the line, never its value.
+      env_file="$HOME/.config/workbench/env"
+      if [ -f "$env_file" ]; then
+        line_number=0
+        while IFS= read -r line || [ -n "$line" ]; do
+          line_number=$((line_number + 1))
+          case $line in '' | '#'*) continue ;; esac
+          name=$${line%%=*}
+          if [ "$name" = "$line" ] || ! printf '%s' "$name" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+            echo "$env_file, line $line_number: not a KEY=value line; skipped" >&2
+            result=1
+            continue
+          fi
+          export "$line"
+        done <"$env_file"
+      fi
+
       if paseo daemon start; then
         # The pairing link goes on the "Pair Paseo" app's page, which has a
         # Copy button and a QR code for phones. The link alone lets anyone
