@@ -229,24 +229,22 @@ resource "coder_script" "setup" {
     # Paseo reads its settings from ~/.paseo/config.json, which a Coder secret
     # can provide: Coder writes secret files before this script runs.
     if [ "$WORKBENCH_PASEO" = true ]; then
-      # Environment variables for this workspace only, such as secrets its
-      # agents need, from ~/.config/workbench/env in this workspace's home:
-      # KEY=value lines, taken literally, with # comments. Paseo passes them
-      # to the agents it starts. Errors name the line, never its value.
-      env_file="$HOME/.config/workbench/env"
-      if [ -f "$env_file" ]; then
-        line_number=0
-        while IFS= read -r line || [ -n "$line" ]; do
-          line_number=$((line_number + 1))
-          case $line in '' | '#'*) continue ;; esac
-          name=$${line%%=*}
-          if [ "$name" = "$line" ] || ! printf '%s' "$name" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
-            echo "$env_file, line $line_number: not a KEY=value line; skipped" >&2
-            result=1
-            continue
-          fi
-          export "$line"
-        done <"$env_file"
+      # This workspace's own setup, e.g. secrets its agents need: a script in
+      # its home, sourced on every start before Paseo, so the variables it
+      # sets reach Paseo and the agents it starts. Its syntax is checked
+      # first, with the shell this runs in, so a broken script is skipped
+      # instead of stopping this one.
+      init="$HOME/.config/workbench/init.sh"
+      if [ -f "$init" ]; then
+        if "$${ZSH_NAME:-sh}" -n "$init"; then
+          echo "Running $init"
+          set -a
+          . "$init" || result=1
+          set +a
+        else
+          echo "$init has a syntax error, so it was skipped." >&2
+          result=1
+        fi
       fi
 
       if paseo daemon start; then
