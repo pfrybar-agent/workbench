@@ -6,9 +6,6 @@ FROM ubuntu:26.04
 ARG USERNAME=dev
 ARG USER_UID=1000
 
-# Signing key of ppa:git-core/ppa, as published by Launchpad.
-ARG GIT_PPA_FINGERPRINT=F911AB184317630C59970973E363C90F8F1B6217
-
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,18 +15,14 @@ RUN sed -i '\|^path-exclude=/usr/share/man/|d' /etc/dpkg/dpkg.cfg.d/excludes \
  && rm -f /usr/bin/man \
  && dpkg-divert --quiet --local --rename --remove /usr/bin/man
 
-# Extra package repositories: Docker CE and the latest git.
+# Install Docker CE from its upstream package repository.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
  && install -d -m 0755 /etc/apt/keyrings \
  && curl -fsSL -o /etc/apt/keyrings/docker.asc https://download.docker.com/linux/ubuntu/gpg \
- && curl -fsSL -o /etc/apt/keyrings/git-core.asc \
-      "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x${GIT_PPA_FINGERPRINT}" \
  && . /etc/os-release \
  && echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
       > /etc/apt/sources.list.d/docker.list \
- && echo "deb [signed-by=/etc/apt/keyrings/git-core.asc] https://ppa.launchpadcontent.net/git-core/ppa/ubuntu ${VERSION_CODENAME} main" \
-      > /etc/apt/sources.list.d/git-core.list \
  && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
